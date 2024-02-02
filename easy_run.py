@@ -17,6 +17,7 @@ assignments = []
 todoist_tasks = []
 courses_id_name_dict = {}
 todoist_project_dict = {}
+todoist_section_dict = {}
 delay = randint(1, 3)  # random delay for throttling/rate limiting
 
 
@@ -30,9 +31,13 @@ def main():
     print(f"Selected {len(course_ids)} courses")
     print("Syncing Canvas Assignments...")
     load_todoist_projects()
+    load_todoist_sections()
     load_assignments()
     load_todoist_tasks()
-    create_todoist_projects()
+    if config["classes_as_sections"]:
+        create_todoist_sections()
+    else:
+        create_todoist_projects()
     transfer_assignments_to_todoist()
     canvas_assignment_stats()
     print("Done!")
@@ -100,6 +105,8 @@ def initial_config():
                 "What is your secondary canvas API key?"
             )
             config["secondary_canvas_api_key"] = input(">")
+        else:
+            config["secondary_canvas_api_key"] = ""
         advance_setup = yes_no(
             "Configure Advanced Options (change priority, labels, make classes as sections instead of projects, or sync null/locked assignments?) (enter n for default config)"
         )
@@ -131,6 +138,7 @@ def initial_config():
             config["sync_locked_assignments"] = True
             config["sync_no_due_date_assignments"] = True
             config["classes_as_sections"] = False
+            config["secondary_canvas_api_key"] = ""
     config["courses"] = []
     with open("config.json", "w") as outfile:
         json.dump(config, outfile)
@@ -263,7 +271,7 @@ def load_todoist_projects():
 def load_todoist_sections():
     sections = todoist_api.get_sections(project_id = todoist_project_dict[config["classes_project"]])
     for section in sections:
-        todoist_project_dict[section.name] = section.id
+        todoist_section_dict[section.name] = section.id
     print(f"Loaded {len(todoist_project_dict)} Todoist Sections")
 
 
@@ -278,6 +286,17 @@ def create_todoist_projects():
         else:
             print(f"Project {courses_id_name_dict[course_id]} exists")
 
+# Checks to see if the user has sections matching their course names, if there
+# is not a new project will be created
+def create_todoist_sections():
+    for course_id in course_ids:
+        if courses_id_name_dict[course_id] not in todoist_section_dict:
+            section = todoist_api.add_section(courses_id_name_dict[course_id], todoist_project_dict[config["classes_project"]])
+            print(f"Project {courses_id_name_dict[course_id]} created")
+            todoist_project_dict[section.name] = section.id
+        else:
+            print(f"Project {courses_id_name_dict[course_id]} exists")
+
 
 # Transfers over assignments from canvas over to Todoist, the method Checks
 # to make sure the assignment has not already been transferred to prevent overlap
@@ -288,8 +307,10 @@ def transfer_assignments_to_todoist():
     excluded = 0
     for assignment in assignments:
         course_name = courses_id_name_dict[assignment["course_id"]]
-        project_id = todoist_project_dict[course_name]
-
+        if config["classes_as_sections"]:
+            section_id = todoist_section_dict[course_name]
+        else:
+            project_id = todoist_project_dict[course_name]
         is_added = False
         is_synced = True
 
@@ -370,7 +391,10 @@ def transfer_assignments_to_todoist():
         if not is_added:
             if assignment["submission"]["workflow_state"] == "unsubmitted":
                 print(f"Adding assignment {course_name}: {assignment['name']}")
-                add_new_task(assignment, project_id)
+                if config["classes_as_sections"]:
+                    add_new_task_section(assignment, section_id)
+                else:
+                    add_new_task(assignment, project_id)
                 new_added += 1
         if is_added and not is_synced:
             update_task(assignment, task)
@@ -396,6 +420,15 @@ def add_new_task(assignment, project_id):
         priority=config["todoist_task_priority"],
     )
 
+def add_new_task_section(assignment, section_id):
+    todoist_api.add_task(
+        content="[" + assignment["name"] + "](" + assignment["html_url"] + ")" + " Due",
+        project_id=todoist_project_dict[config["classes_project"]],
+        section_id=section_id,
+        due_datetime=assignment["due_at"],
+        labels=config["todoist_task_labels"],
+        priority=config["todoist_task_priority"],
+    )
 
 def canvas_assignment_stats():
     print(f"  {'-'*52}")
