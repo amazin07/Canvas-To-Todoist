@@ -61,6 +61,9 @@ def initialize_api():
     # create todoist_api object globally
     todoist_api = TodoistAPI(config["todoist_api_key"].strip())
     header.update({"Authorization": f"Bearer {config['canvas_api_key'].strip()}"})
+    if config["secondary_canvas_api_key"] != "":
+        header.update({"Authorization": f"Bearer {config['secondary_canvas_api_key'].strip()}"})
+
 
 
 def initial_config():
@@ -80,6 +83,8 @@ def initial_config():
         config["sync_null_assignments"] = True
         config["sync_locked_assignments"] = True
         config["sync_no_due_date_assignments"] = True
+        config["classes_as_sections"] = False
+        config["secondary_canvas_api_key"] = ""
     if defaults == False:
         custom_url = yes_no("Use default Canvas URL? (https://canvas.instructure.com)")
         if custom_url == True:
@@ -89,8 +94,14 @@ def initial_config():
                 "Enter your custom Canvas URL: (example https://university.instructure.com)"
             )
             config["canvas_api_heading"] = input(">")
+        dual_enroll = yes_no("Do you want to link a secondary Canvas account?")
+        if dual_enroll:
+            print(
+                "What is your secondary canvas API key?"
+            )
+            config["secondary_canvas_api_key"] = input(">")
         advance_setup = yes_no(
-            "Configure Advanced Options (change priority, labels, or sync null/locked assignments?) (enter n for default config)"
+            "Configure Advanced Options (change priority, labels, make classes as sections instead of projects, or sync null/locked assignments?) (enter n for default config)"
         )
         if advance_setup == True:
             print(
@@ -108,13 +119,18 @@ def initial_config():
             config["sync_locked_assignments"] = locked_assignments
             no_due_date_assignments = yes_no("Sync assignments with no due date?")
             config["sync_no_due_date_assignments"] = no_due_date_assignments
-
+            as_sections = yes_no("Classes as sections as opposed to as projects?")
+            config["classes_as_sections"] = as_sections
+            if as_sections:
+                print("What is the name of your project containing you classwork?")
+                config["classes_project"] = input(">")
         else:
             config["todoist_task_priority"] = 1
             config["todoist_task_labels"] = []
             config["sync_null_assignments"] = True
             config["sync_locked_assignments"] = True
             config["sync_no_due_date_assignments"] = True
+            config["classes_as_sections"] = False
     config["courses"] = []
     with open("config.json", "w") as outfile:
         json.dump(config, outfile)
@@ -143,10 +159,14 @@ def select_courses():
                 course_ids.extend(
                     list(map(lambda course_id: int(course_id), config["courses"]))
                 )
-                for course in response.json():
-                    courses_id_name_dict[course.get("id", None)] = re.sub(
-                        r"[^-a-zA-Z0-9._\s]", "", course.get("name", "")
-                    )
+                if config["custom_names"]:
+                    for i in range(len(config["courses"])):
+                        courses_id_name_dict[config["courses"][i]] = config["custom_names"][i]
+                else:
+                    for course in response.json():
+                        courses_id_name_dict[course.get("id", None)] = re.sub(
+                            r"[^-a-zA-Z0-9._\s]", "", course.get("name", "")
+                        )
                 return
     except Exception as error:
         print(f"Error while loading courses: {error}")
@@ -174,11 +194,21 @@ def select_courses():
             )
         )
     )
+    change_names = yes_no("Would you like to change the names of your courses when displayed in ToDoist?")
+    if change_names:
+        for course_id in course_ids:
+            print(f"What do you want to rename {courses_id_name_dict[course_id]}?")
+            new_name = input(">")
+            config["custom_names"] = []
+            config["custom_names"].append(new_name)
+            courses_id_name_dict[course_id] = new_name
+
 
     # write course ids to config.json
     config["courses"] = course_ids
     with open("config.json", "w") as outfile:
         json.dump(config, outfile)
+
 
 
 # Iterates over the course_ids list and loads all of the users assignments
@@ -228,6 +258,13 @@ def load_todoist_projects():
     for project in projects:
         todoist_project_dict[project.name] = project.id
     print(f"Loaded {len(todoist_project_dict)} Todoist Projects")
+
+# Loads all user sections from Todoist project with classwork
+def load_todoist_sections():
+    sections = todoist_api.get_sections(project_id = todoist_project_dict[config["classes_project"]])
+    for section in sections:
+        todoist_project_dict[section.name] = section.id
+    print(f"Loaded {len(todoist_project_dict)} Todoist Sections")
 
 
 # Checks to see if the user has a project matching their course names, if there
