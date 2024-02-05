@@ -204,10 +204,10 @@ def select_courses():
     )
     change_names = yes_no("Would you like to change the names of your courses when displayed in ToDoist?")
     if change_names:
+        config["custom_names"] = []
         for course_id in course_ids:
             print(f"What do you want to rename {courses_id_name_dict[course_id]}?")
             new_name = input(">")
-            config["custom_names"] = []
             config["custom_names"].append(new_name)
             courses_id_name_dict[course_id] = new_name
 
