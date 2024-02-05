@@ -316,7 +316,7 @@ def transfer_assignments_to_todoist():
 
         for task in todoist_tasks:
             if (
-                task.content == f"[{assignment['name']}]({assignment['html_url']}) Due"
+                task.content == f"[{assignment['name']}]({assignment['html_url']})"
             ):
                 is_added = True
                 if (
