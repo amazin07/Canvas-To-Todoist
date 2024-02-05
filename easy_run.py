@@ -317,6 +317,7 @@ def transfer_assignments_to_todoist():
         for task in todoist_tasks:
             if (
                 task.content == f"[{assignment['name']}]({assignment['html_url']}) Due"
+                and task.project_id == project_id
             ):
                 is_added = True
                 if (
