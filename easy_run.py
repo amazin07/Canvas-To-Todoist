@@ -412,7 +412,7 @@ def transfer_assignments_to_todoist():
 # project corresponding to project_id
 def add_new_task(assignment, project_id):
     todoist_api.add_task(
-        content="[" + assignment["name"] + "](" + assignment["html_url"] + ")" + " Due",
+        content="[" + assignment["name"] + "](" + assignment["html_url"] + ")",
         project_id=project_id,
         due_datetime=assignment["due_at"],
         labels=config["todoist_task_labels"],
@@ -421,7 +421,7 @@ def add_new_task(assignment, project_id):
 
 def add_new_task_section(assignment, section_id):
     todoist_api.add_task(
-        content="[" + assignment["name"] + "](" + assignment["html_url"] + ")" + " Due",
+        content="[" + assignment["name"] + "](" + assignment["html_url"] + ")",
         project_id=todoist_project_dict[config["classes_project"]],
         section_id=section_id,
         due_datetime=assignment["due_at"],
